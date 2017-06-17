@@ -1,52 +1,61 @@
 -module(bf).
 
 -export([run/1, run/2]).
-
--export([end_of_loop/1]).
+-export([parse/1]).
 
 run (Code) ->
     run (Code, []).
 run (Code, Input) ->
+    Tokens = parse(Code),
     Cells = {[], 0, []},
-    run (Code, Cells, Input, []).
+    {_, _, Result} = exec(Tokens, {Cells, Input, []}),
+    lists:reverse(Result).
 
-run ([], _, _, Acc) -> lists:reverse(Acc);
-run ([$. | Code], {_, Cell, _} = Cells, Input, Acc) ->
-    run(Code, Cells, Input, [Cell | Acc]);
-run ([$, | Code], {Left, _, Right}, [], Acc) ->
-    run(Code, {Left, 0, Right}, [], Acc);
-run ([$, | Code], {Left, _, Right}, [Input | Rest], Acc) ->
-    run(Code, {Left, Input, Right}, Rest, Acc);
-run ([$+ | Code], {Left, Cell, Right}, Input, Acc) ->
-    run(Code, {Left, (Cell + 1) rem 256, Right}, Input, Acc);
-run ([$- | Code], {Left, Cell, Right}, Input, Acc) ->
-    run(Code, {Left, (Cell + 255) rem 256, Right}, Input, Acc);
-run ([$> | Code], {[], Cell, Right}, Input, Acc) ->
-    run(Code, {[], 0, [Cell | Right]}, Input, Acc);
-run ([$> | Code], {[Cell_l | Left], Cell, Right}, Input, Acc) ->
-    run(Code, {Left, Cell_l, [Cell | Right]}, Input, Acc);
-run ([$< | Code], {Left, Cell, []}, Input, Acc) ->
-    run(Code, {[Cell | Left], 0, []}, Input, Acc);
-run ([$< | Code], {Left, Cell, [Cell_r | Right]}, Input, Acc) ->
-    run(Code, {[Cell | Left], Cell_r, Right}, Input, Acc);
-run ([$[ | Code], {_, 0, _} = Cells, Input, Acc) ->
-    run(end_of_loop(Code), Cells, Input, Acc);
-run ([$[ | Code], Cells, Input, Acc) ->
-    case run(Code, Cells, Input, Acc) of
-        {Code2, {_, 0, _} = Cells2, Input2, Acc2} ->
-            run(Code2, Cells2, Input2, Acc2);
-        {_, Cells2, Input2, Acc2} ->
-            run([$[ | Code], Cells2, Input2, Acc2)
-    end;
-run ([$] | Code], Cells, Input, Acc) ->
-    {Code, Cells, Input, Acc};
-run ([_ | Code], Cells, Input, Acc) ->
-    run(Code, Cells, Input, Acc).
+exec (Tokens, Acc) ->
+    lists:foldl(fun step/2, Acc, Tokens).
 
-end_of_loop (Code) -> end_of_loop(Code, 1).
+parse (Code) ->
+    case parse_one(Code) of
+        eoc -> [];
+        {Token, Rest} -> [Token | parse(Rest)]
+    end.
 
-end_of_loop ([], _) -> throw(no_end_bracket);
-end_of_loop ([$] | Code], 1) -> Code;
-end_of_loop ([$] | Code], Nbr) -> end_of_loop(Code, Nbr - 1);
-end_of_loop ([$[ | Code], Nbr) -> end_of_loop(Code, Nbr + 1);
-end_of_loop ([_ | Code], Nbr) -> end_of_loop(Code, Nbr).
+parse_one ([]) -> eoc;
+parse_one ([$+ | Code]) -> {plus, Code};
+parse_one ([$- | Code]) -> {minus, Code};
+parse_one ([$. | Code]) -> {print, Code};
+parse_one ([$, | Code]) -> {read, Code};
+parse_one ([$> | Code]) -> {right, Code};
+parse_one ([$< | Code]) -> {left, Code};
+parse_one ([$] | _]) -> throw(unexpected_end_of_loop);
+parse_one ([$[ | Code]) -> parse_loop(Code, []);
+parse_one ([_ | Code]) -> parse_one(Code).
+
+parse_loop ([$] | Code], Acc) ->
+    {{loop, lists:reverse(Acc)}, Code};
+parse_loop (Code, Acc) ->
+    case parse_one(Code) of
+        eoc -> {{loop, lists:reverse(Acc)}, []};
+        {Token, Rest} -> parse_loop(Rest, [Token | Acc])
+    end.
+
+step (plus, {{Left, Cell, Right}, Input, Acc}) ->
+    {{Left, (Cell + 1) rem 256, Right}, Input, Acc};
+step (minus, {{Left, Cell, Right}, Input, Acc}) ->
+    {{Left, (Cell + 255) rem 256, Right}, Input, Acc};
+step (print, {{_, Cell, _} = Cells, Input, Acc}) ->
+    {Cells, Input, [Cell | Acc]};
+step (read, {{Left, _, Right}, [], Acc}) ->
+    {{Left, 0, Right}, [], Acc};
+step (read, {{Left, _, Right}, [Input | Rest], Acc}) ->
+    {{Left, Input, Right}, Rest, Acc};
+step (left, {{Left, Cell, []}, Input, Acc}) ->
+    {{[Cell | Left], 0, []}, Input, Acc};
+step (left, {{Left, Cell, [Cell_r | Right]}, Input, Acc}) ->
+    {{[Cell | Left], Cell_r, Right}, Input, Acc};
+step (right, {{[], Cell, Right}, Input, Acc}) ->
+    {{[], 0, [Cell | Right]}, Input, Acc};
+step (right, {{[Cell_l | Left], Cell, Right}, Input, Acc}) ->
+    {{Left, Cell_l, [Cell | Right]}, Input, Acc};
+step ({loop, _}, {{_, 0, _}, _, _} = Acc) -> Acc;
+step ({loop, Tokens}, Acc) -> step({loop, Tokens}, exec(Tokens, Acc)).
