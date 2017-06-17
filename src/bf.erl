@@ -27,7 +27,7 @@ parse_one ([$. | Code]) -> {print, Code};
 parse_one ([$, | Code]) -> {read, Code};
 parse_one ([$> | Code]) -> {right, Code};
 parse_one ([$< | Code]) -> {left, Code};
-parse_one ([$] | _]) -> throw(unexpected_end_of_loop);
+parse_one ([$] | _]) -> throw(unexpected_closing_bracket);
 parse_one ([$[ | Code]) -> parse_loop(Code, []);
 parse_one ([_ | Code]) -> parse_one(Code).
 
@@ -35,7 +35,7 @@ parse_loop ([$] | Code], Acc) ->
     {{loop, lists:reverse(Acc)}, Code};
 parse_loop (Code, Acc) ->
     case parse_one(Code) of
-        eoc -> {{loop, lists:reverse(Acc)}, []};
+        eoc -> throw(missing_closing_bracket);
         {Token, Rest} -> parse_loop(Rest, [Token | Acc])
     end.
 

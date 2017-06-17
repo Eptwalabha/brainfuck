@@ -35,7 +35,10 @@ parsing_test_ () ->
     [parse_symboles(),
      parse_only_valid_symboles(),
      parse_loop(),
-     parse_nested_loop()].
+     parse_nested_loop(),
+     throw_exception_on_unexpected_closing_bracket(),
+     throw_exception_on_missing_closing_bracket()
+    ].
 
 return_an_empty_list_if_nothing_is_printed () ->
     ?_assertEqual([], bf:run("++><")).
@@ -147,3 +150,10 @@ parse_nested_loop () ->
                     plus, plus, right]}]},
                 plus],
     ?_assertEqual(Expected, bf:parse(Code)).
+
+throw_exception_on_unexpected_closing_bracket () ->
+    [?_assertThrow(unexpected_closing_bracket, bf:parse("+-+]")),
+     ?_assertThrow(unexpected_closing_bracket, bf:parse("+[>++<-]-+]"))].
+
+throw_exception_on_missing_closing_bracket () ->
+    ?_assertThrow(missing_closing_bracket, bf:parse("+[-+>]++[--")).
