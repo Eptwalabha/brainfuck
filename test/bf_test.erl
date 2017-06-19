@@ -31,13 +31,18 @@ misc_test_ () ->
      hello_world(),
      quick_sort()].
 
-parsing_test_ () ->
-    [parse_symboles(),
-     parse_only_valid_symboles(),
-     parse_loop(),
-     parse_nested_loop(),
+lexing_test_ () ->
+    [tokenize_symboles(),
+     tokenize_only_valid_symboles(),
+     tokenize_loop(),
+     tokenize_nested_loop(),
      throw_exception_on_unexpected_closing_bracket(),
-     throw_exception_on_missing_closing_bracket()
+     throw_exception_on_missing_closing_bracket()].
+
+optimize_test_ () ->
+    [contraction_plus_minus(),
+     contraction_with_other_symboles(),
+     contraction_with_loop()
     ].
 
 return_an_empty_list_if_nothing_is_printed () ->
@@ -117,29 +122,29 @@ quick_sort_program () ->
     ">>,[>>,]<<[[<<]>>>>[<<[>+<<+>-]>>[>+<<<<[->]>[<]>>-]<<<[[-]"
     ">>[>+<-]>>[<<<+>>>-]]>>[[<+>-]>>]<]<<[>>+<<-]<<]>>>>[.>>]".
 
-parse_symboles () ->
-    [?_assertEqual([plus], bf:parse("+")),
-     ?_assertEqual([minus], bf:parse("-")),
-     ?_assertEqual([print], bf:parse(".")),
-     ?_assertEqual([read], bf:parse(",")),
-     ?_assertEqual([left], bf:parse("<")),
-     ?_assertEqual([right], bf:parse(">")),
+tokenize_symboles () ->
+    [?_assertEqual([plus], bf:tokenize("+")),
+     ?_assertEqual([minus], bf:tokenize("-")),
+     ?_assertEqual([print], bf:tokenize(".")),
+     ?_assertEqual([read], bf:tokenize(",")),
+     ?_assertEqual([left], bf:tokenize("<")),
+     ?_assertEqual([right], bf:tokenize(">")),
      ?_assertEqual([plus, minus, left, read, right, print],
-                   bf:parse("+-<,>."))].
+                   bf:tokenize("+-<,>."))].
 
-parse_only_valid_symboles () ->
+tokenize_only_valid_symboles () ->
     Code = "a+b-c.d,efg>h<i",
     Expected = [plus, minus, print, read, right, left],
-    ?_assertEqual(Expected, bf:parse(Code)).
+    ?_assertEqual(Expected, bf:tokenize(Code)).
 
-parse_loop () ->
+tokenize_loop () ->
     Code = "+[->+abcdefg+<]>.",
     Expected = [plus, {loop, [minus, right, plus, plus, left]},
                 right, print],
-    [?_assertEqual([{loop, [left]}], bf:parse("[<]")),
-     ?_assertEqual(Expected, bf:parse(Code))].
+    [?_assertEqual([{loop, [left]}], bf:tokenize("[<]")),
+     ?_assertEqual(Expected, bf:tokenize(Code))].
 
-parse_nested_loop () ->
+tokenize_nested_loop () ->
     Code = "+[[>]>[[+>]++>]]+",
     Expected = [plus,
                 {loop,
@@ -149,11 +154,38 @@ parse_nested_loop () ->
                    [{loop, [plus, right]},
                     plus, plus, right]}]},
                 plus],
-    ?_assertEqual(Expected, bf:parse(Code)).
+    ?_assertEqual(Expected, bf:tokenize(Code)).
 
 throw_exception_on_unexpected_closing_bracket () ->
-    [?_assertThrow(unexpected_closing_bracket, bf:parse("+-+]")),
-     ?_assertThrow(unexpected_closing_bracket, bf:parse("+[>++<-]-+]"))].
+    [?_assertThrow(unexpected_closing_bracket, bf:tokenize("+-+]")),
+     ?_assertThrow(unexpected_closing_bracket, bf:tokenize("+[>++<-]-+]"))].
 
 throw_exception_on_missing_closing_bracket () ->
-    ?_assertThrow(missing_closing_bracket, bf:parse("+[-+>]++[--")).
+    ?_assertThrow(missing_closing_bracket, bf:tokenize("+[-+>]++[--")).
+
+contraction_plus_minus () ->
+    [?_assertEqual([{add, 4}], bf:optimize([plus, plus, plus, plus])),
+     ?_assertEqual([{add, -3}], bf:optimize([minus, minus, minus])),
+     ?_assertEqual([{add, 1}], bf:optimize([minus, plus, plus])),
+     ?_assertEqual([], bf:optimize([minus, plus, minus, plus])),
+     ?_assertEqual([{add, 42}], bf:optimize(lists:duplicate(42, plus)))].
+
+contraction_with_other_symboles () ->
+    [?_assertEqual([{add, 1}, left, {add, -1}, right],
+                   bf:optimize([plus, left, minus, right])),
+     ?_assertEqual([left, left],
+                   bf:optimize([plus, minus, left, minus, plus, left])),
+     ?_assertEqual([left, {add, 2}, print, read],
+                   bf:optimize([plus, minus, left, plus, plus, print, read]))
+    ].
+
+contraction_with_loop () ->
+    [?_assertEqual([{add, 2}, {loop, [{add, -1}]}],
+                   bf:optimize([plus, plus, {loop, [minus]}])),
+     ?_assertEqual([{loop, [{loop, [{add, 2}, left]}]}, left, print],
+                   bf:optimize([plus, minus,
+                                {loop, [plus, minus,
+                                        {loop, [plus, plus, left]},
+                                        plus, minus, plus, minus]},
+                                left, plus, minus, print]))
+    ].
