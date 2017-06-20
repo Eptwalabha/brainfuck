@@ -43,8 +43,7 @@ tokenize_loop (Code, Acc) ->
         {Token, Rest} -> tokenize_loop(Rest, [Token | Acc])
     end.
 
-optimize (Tokens) ->
-    optimize (Tokens, []).
+optimize (Tokens) -> optimize (Tokens, []).
 
 optimize ([], Acc) -> lists:reverse(Acc);
 optimize ([plus | Tokens], Acc) ->
@@ -63,9 +62,38 @@ optimize ([Token | Tokens], Acc)
   when Token =:= left; Token =:= right;
        Token =:= print; Token =:= read ->
     optimize(Tokens, [Token | Acc]);
+optimize ([{loop, _} | Tokens], [clear | _] = Acc) ->
+    optimize(Tokens, Acc);
 optimize ([{loop, Loop_tokens} | Tokens], Acc) ->
-    optimize(Tokens, [{loop, optimize(Loop_tokens, [])} | Acc]).
+    case optimize(Loop_tokens, []) of
+        [{add, Nbr}] = Tokens2 ->
+            case mod(Nbr, 2) of
+                1 -> optimize(Tokens, [clear | Acc]);
+                _ -> optimize(Tokens, [{loop, Tokens2} | Acc])
+            end;
+        Tokens2 ->
+            case copy_pattern(Tokens2) of
+                {copy, _} = Copy -> optimize(Tokens, [Copy | Acc]);
+                _ -> optimize(Tokens, [{loop, Tokens2} | Acc])
+            end
+    end.
 
+copy_pattern ([{add, -1}, right, {add, 1}, left]) -> {copy, 1};
+copy_pattern ([right, {add, 1}, left, {add, -1}]) -> {copy, 1};
+copy_pattern ([{add, -1}, left, {add, 1}, right]) -> {copy, -1};
+copy_pattern ([left, {add, 1}, right, {add, -1}]) -> {copy, -1};
+copy_pattern (_) -> [].
+
+step ({copy, 1}, {{Left, Cell, []}, Input, Acc}) ->
+    {{Left, 0, [Cell]}, Input, Acc};
+step ({copy, 1}, {{Left, Cell, [Cell_r | Right]}, Input, Acc}) ->
+    {{Left, 0, [mod(Cell_r + Cell) | Right]}, Input, Acc};
+step ({copy, -1}, {{[], Cell, Right}, Input, Acc}) ->
+    {{[Cell], 0, Right}, Input, Acc};
+step ({copy, -1}, {{[Cell_l | Left], Cell, Right}, Input, Acc}) ->
+    {{[mod(Cell_l + Cell) | Left], 0, Right}, Input, Acc};
+step (clear, {{Left, _, Right}, Input, Acc}) ->
+    {{Left, 0, Right}, Input, Acc};
 step ({add, N}, {{Left, Cell, Right}, Input, Acc}) ->
     {{Left, mod(Cell + N), Right}, Input, Acc};
 step (print, {{_, Cell, _} = Cells, Input, Acc}) ->
@@ -74,13 +102,13 @@ step (read, {{Left, _, Right}, [], Acc}) ->
     {{Left, 0, Right}, [], Acc};
 step (read, {{Left, _, Right}, [Input | Rest], Acc}) ->
     {{Left, Input, Right}, Rest, Acc};
-step (left, {{Left, Cell, []}, Input, Acc}) ->
+step (right, {{Left, Cell, []}, Input, Acc}) ->
     {{[Cell | Left], 0, []}, Input, Acc};
-step (left, {{Left, Cell, [Cell_r | Right]}, Input, Acc}) ->
+step (right, {{Left, Cell, [Cell_r | Right]}, Input, Acc}) ->
     {{[Cell | Left], Cell_r, Right}, Input, Acc};
-step (right, {{[], Cell, Right}, Input, Acc}) ->
+step (left, {{[], Cell, Right}, Input, Acc}) ->
     {{[], 0, [Cell | Right]}, Input, Acc};
-step (right, {{[Cell_l | Left], Cell, Right}, Input, Acc}) ->
+step (left, {{[Cell_l | Left], Cell, Right}, Input, Acc}) ->
     {{Left, Cell_l, [Cell | Right]}, Input, Acc};
 step ({loop, _}, {{_, 0, _}, _, _} = Acc) -> Acc;
 step ({loop, Tokens}, Acc) -> step({loop, Tokens}, exec(Tokens, Acc)).
@@ -88,3 +116,5 @@ step ({loop, Tokens}, Acc) -> step({loop, Tokens}, exec(Tokens, Acc)).
 mod (N) when N > 256 -> mod(N - 256);
 mod (N) when N < 0 -> mod(N + 256);
 mod (N) -> N.
+
+mod(N, P) -> (((N rem P) + P) rem P).
