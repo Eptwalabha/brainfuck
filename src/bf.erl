@@ -45,6 +45,10 @@ tokenize_loop (Code, Acc) ->
 
 optimize (Tokens) -> optimize (Tokens, []).
 
+optimize (Tokens, [clear, {add, _} | Acc]) ->
+    optimize(Tokens, [clear | Acc]);
+optimize ([{loop, _} | Tokens], [clear | _] = Acc) ->
+    optimize(Tokens, Acc);
 optimize ([], Acc) -> lists:reverse(Acc);
 optimize ([plus | Tokens], Acc) ->
     case Acc of
@@ -62,8 +66,6 @@ optimize ([Token | Tokens], Acc)
   when Token =:= left; Token =:= right;
        Token =:= print; Token =:= read ->
     optimize(Tokens, [Token | Acc]);
-optimize ([{loop, _} | Tokens], [clear | _] = Acc) ->
-    optimize(Tokens, Acc);
 optimize ([{loop, Loop_tokens} | Tokens], Acc) ->
     case optimize(Loop_tokens, []) of
         [{add, Nbr}] = Tokens2 ->
@@ -98,8 +100,8 @@ step ({add, N}, {{Left, Cell, Right}, Input, Acc}) ->
     {{Left, mod(Cell + N), Right}, Input, Acc};
 step (print, {{_, Cell, _} = Cells, Input, Acc}) ->
     {Cells, Input, [Cell | Acc]};
-step (read, {{Left, _, Right}, [], Acc}) ->
-    {{Left, 0, Right}, [], Acc};
+step (read, {Cells, [], Acc}) ->
+    {Cells, [], Acc};
 step (read, {{Left, _, Right}, [Input | Rest], Acc}) ->
     {{Left, Input, Right}, Rest, Acc};
 step (right, {{Left, Cell, []}, Input, Acc}) ->

@@ -12,7 +12,7 @@ print_test_ () ->
 
 input_test_ () ->
     [put_input_s_value_into_current_cell(),
-     set_current_cell_to_zero_if_there_is_no_input()].
+     leave_current_value_if_no_input_available()].
 
 opperation_on_cells_test_ () ->
     [increase_cell(),
@@ -49,12 +49,11 @@ optimize_test_ () ->
      contraction_with_loop(),
      clear_loop(),
      potential_and_infinit_loop(),
-     copy_loop()
-    ].
+     copy_loop()].
 
 clean_code_test_ () ->
-    [remove_unreachable_loop()
-    ].
+    [remove_unreachable_loop(),
+     simplify_add_then_clear()].
 
 return_an_empty_list_if_nothing_is_printed () ->
     ?_assertEqual([], bf:run("++><")).
@@ -67,10 +66,11 @@ print_cell_s_value () ->
 put_input_s_value_into_current_cell () ->
     ?_assertEqual([0, 5], bf:run(".,.", [5])).
 
-set_current_cell_to_zero_if_there_is_no_input () ->
+leave_current_value_if_no_input_available () ->
     [?_assertEqual([0], bf:run(",.")),
+     ?_assertEqual([42, 42], bf:run(",.,.", [42])),
      ?_assertEqual([1, 5, 0], bf:run(",.>,.>,.", [1, 5])),
-     ?_assertEqual([1, 0, 0], bf:run(",.,.,.", [1]))].
+     ?_assertEqual([1, 1, 1], bf:run(",.,.,.", [1]))].
 
 increase_cell () ->
     [?_assertEqual([1], bf:run("+.")),
@@ -111,7 +111,8 @@ exit_the_loop_when_current_cell_s_value_is_zero () ->
 loop_consumes_input () ->
     [?_assertEqual([6], bf:run(",[>,<-]>.", [2, 1, 6, 8])),
      ?_assertEqual([3], bf:run("++[>,<-]>.", [2, 3])),
-     ?_assertEqual([3, 2, 1, 0, 0], bf:run(",.[,.].", [3, 2, 1]))].
+     ?_assertEqual([3], bf:run("+++++[>,<-]>.", [2, 3])),
+     ?_assertEqual([3, 2, 1, 0, 0], bf:run(",.[,.].", [3, 2, 1, 0]))].
 
 does_not_interpret_non_valid_symboles () ->
     ?_assertEqual([], bf:run("abcdefg")).
@@ -218,5 +219,8 @@ copy_loop () ->
      ?_assertEqual([read, {copy, -1}], optimize_code(",[<+>-]")),
      ?_assertEqual([read, {copy, -1}], optimize_code(",[-<+>]")),
      ?_assertEqual([0, 6], bf:run("<,>,[-<+>].<.", [5, 1])),
-     ?_assertEqual([0, 42], bf:run(",[<+>-].<.", [42]))
-    ].
+     ?_assertEqual([0, 42], bf:run(",[<+>-].<.", [42]))].
+
+simplify_add_then_clear () ->
+    [?_assertEqual([read, clear], optimize_code(",++[-]")),
+     ?_assertEqual([read, clear], optimize_code(",--[+]"))].
